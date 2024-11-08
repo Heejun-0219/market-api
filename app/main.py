@@ -7,8 +7,10 @@ from app.services.log import DataLogService
 from app.services.enhance_market import EnhancedMarketService
 from app.services.world_bank import WorldBankService
 from app.services.korea_market import KoreaMarketService
+from app.services.mix_indicator import SelectedIndicatorsService
 from typing import Dict, List, Optional
 import json
+from datetime import datetime
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -36,6 +38,10 @@ enhanced_market_service = EnhancedMarketService(
     settings.CURRENT_DIR,
     settings.DAILY_DIR,
     korea_market_service
+)
+
+selected_indicators_service = SelectedIndicatorsService(
+    data_dir=settings.DATA_DIR / 'selected'
 )
 
 @app.get("/")
@@ -212,5 +218,100 @@ async def get_all_indicators(
         if result['status'] == 'error':
             raise HTTPException(status_code=500, detail=result['error'])
         return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@app.get(f"{settings.API_V1_STR}/selected-indicators/update")
+async def update_selected_indicators():
+    """선택된 지표 데이터 업데이트"""
+    try:
+        result = await selected_indicators_service.update_data()
+        return {
+            "status": "success",
+            "message": "Selected indicators updated successfully",
+            "data": result
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get(f"{settings.API_V1_STR}/selected-indicators/historical")
+async def get_selected_indicators_history(
+    days: Optional[int] = Query(7, description="조회할 일수")
+):
+    """선택된 지표의 과거 데이터 조회"""
+    try:
+        result = await selected_indicators_service.get_historical_data(days)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get(f"{settings.API_V1_STR}/selected-indicators/changes")
+async def get_selected_indicators_changes(
+    days: Optional[int] = Query(1, description="비교할 기간(일)")
+):
+    """선택된 지표의 변화율 조회"""
+    try:
+        result = await selected_indicators_service.calculate_changes(days)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get(f"{settings.API_V1_STR}/selected-indicators/current")
+async def get_current_selected_indicators():
+    """선택된 지표의 최신 데이터만 조회"""
+    try:
+        result = await selected_indicators_service.get_historical_data(days=1)
+        if result["status"] == "success" and result["data"]:
+            return {
+                "status": "success",
+                "data": result["data"][0]
+            }
+        return {
+            "status": "error",
+            "message": "No current data available"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get(f"{settings.API_V1_STR}/selected-indicators/period")
+async def get_selected_indicators_period(
+    start_date: Optional[str] = Query(None, description="시작일 (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="종료일 (YYYY-MM-DD)"),
+    last_n_days: Optional[int] = Query(None, description="최근 N일간의 데이터")
+):
+    """기간별 지표 데이터 조회
+    
+    - start_date와 end_date로 특정 기간 조회
+    - 또는 last_n_days로 최근 N일간의 데이터 조회
+    - 모든 매개변수가 None이면 전체 데이터 반환
+    """
+    try:
+        # 날짜 형식 검증
+        if start_date:
+            try:
+                datetime.strptime(start_date, '%Y-%m-%d')
+            except ValueError:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid start_date format. Use YYYY-MM-DD"
+                )
+                
+        if end_date:
+            try:
+                datetime.strptime(end_date, '%Y-%m-%d')
+            except ValueError:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid end_date format. Use YYYY-MM-DD"
+                )
+        
+        result = await selected_indicators_service.get_period_data(
+            start_date=start_date,
+            end_date=end_date,
+            last_n_days=last_n_days
+        )
+        
+        return result
+        
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
