@@ -1,5 +1,5 @@
 import pandas as pd
-import datetime
+from datetime import datetime
 from pathlib import Path
 import yfinance as yf
 

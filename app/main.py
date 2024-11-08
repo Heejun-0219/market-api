@@ -123,7 +123,7 @@ async def save_market_changes():
         market_changes = await enhanced_market_service.get_market_changes()
         
         # 저장 경로 설정
-        save_dir = settings.CURRENT_DIR / 'data' / 'current'
+        save_dir = settings.CURRENT_DIR
         save_dir.mkdir(parents=True, exist_ok=True)
         file_path = save_dir / 'market.json'
         
@@ -145,7 +145,7 @@ async def get_current_market_changes():
     """저장된 시장 변화 데이터 조회"""
     try:
         # 파일 경로 설정
-        file_path = settings.CURRENT_DIR / 'data' / 'current' / 'market.json'
+        file_path = settings.CURRENT_DIR / 'market.json'
         
         # 파일이 존재하지 않는 경우
         if not file_path.exists():
