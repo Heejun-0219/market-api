@@ -11,6 +11,7 @@ from app.services.mix_indicator import SelectedIndicatorsService
 from typing import Dict, List, Optional
 import json
 from datetime import datetime
+from app.services.data_storage import DataStorageService
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -117,19 +118,15 @@ async def get_market_changes():
 
 @app.get(f"{settings.API_V1_STR}/market-changes/save")
 async def save_market_changes():
-    """시장 변화 데이터 조회 및 JSON 파일로 저장"""
     try:
-        # 시장 변화 데이터 조회
         market_changes = await enhanced_market_service.get_market_changes()
         
-        # 저장 경로 설정
         save_dir = settings.CURRENT_DIR
         save_dir.mkdir(parents=True, exist_ok=True)
         file_path = save_dir / 'market.json'
         
-        # JSON으로 저장
-        with open(file_path, 'w', encoding='utf-8') as f:
-            json.dump(market_changes, f, ensure_ascii=False, indent=2, default=str)
+        storage_service = DataStorageService()
+        storage_service.save_to_json(market_changes, file_path)
         
         return {
             "status": "success",

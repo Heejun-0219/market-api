@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 import numpy as np
 from app.services.korea_market import KoreaMarketService
+from app.services.data_storage import DataStorageService
 
 class EnhancedMarketService:
     def __init__(self, current_dir: Path, daily_dir: Path, korea_market_service: KoreaMarketService):
@@ -251,8 +252,10 @@ class EnhancedMarketService:
         return sorted(significant, key=lambda x: abs(x['change_pct']), reverse=True)
 
     async def save_enhanced_data(self, data: dict):
-        """확장된 데이터 저장 - timestamp 처리 추가"""
+        """확장된 데이터 저장 - NaN 처리 추가"""
         try:
+            storage_service = DataStorageService()
+            
             # timestamp 처리
             timestamp = data['timestamp']
             if isinstance(timestamp, str):
@@ -269,16 +272,19 @@ class EnhancedMarketService:
             current_date = timestamp.strftime('%Y-%m-%d')
             current_time = timestamp.strftime('%Y-%m-%d %H:%M:%S')
             
-            # 기본 지표 데이터 프레임 생성
-            basic_df = pd.DataFrame([{
+            # 기본 지표 데이터
+            basic_file = self.daily_dir / 'basic_indicators.csv'
+            basic_data = {
                 'date': current_date,
                 'timestamp': current_time,
                 **data['exchange_rates'],
                 **data['local_indices']
-            }])
+            }
+            storage_service.update_csv_file(basic_data, basic_file)
             
-            # 글로벌 지표 데이터 프레임 생성
-            global_df = pd.DataFrame([{
+            # 글로벌 지표 데이터
+            global_file = self.daily_dir / 'global_indicators.csv'
+            global_data = {
                 'date': current_date,
                 'timestamp': current_time,
                 **data['global_indices'],
@@ -287,47 +293,8 @@ class EnhancedMarketService:
                 **data['volatility'],
                 **data['crypto'],
                 **{f"derived_{k}": v for k, v in data['derived_indicators'].items()}
-            }])
-            
-            # 기본 지표 파일 처리
-            basic_file = self.daily_dir / 'basic_indicators.csv'
-            try:
-                if basic_file.exists():
-                    existing_basic = pd.read_csv(basic_file)
-                    if not existing_basic.empty:
-                        existing_basic['date'] = pd.to_datetime(existing_basic['date']).dt.strftime('%Y-%m-%d')
-                        # 동일 날짜의 데이터가 있으면 제거
-                        existing_basic = existing_basic[existing_basic['date'] != current_date]
-                        # 새 데이터를 위에 추가
-                        basic_df = pd.concat([basic_df, existing_basic], ignore_index=True)
-            except Exception as e:
-                print(f"Error reading basic_indicators.csv: {e}")
-                # 파일 읽기 실패 시 새로운 데이터만으로 저장
-                pass
-            
-            # 디렉토리가 없는 경우 생성
-            basic_file.parent.mkdir(parents=True, exist_ok=True)
-            basic_df.to_csv(basic_file, index=False)
-            
-            # 글로벌 지표 파일 처리
-            global_file = self.daily_dir / 'global_indicators.csv'
-            try:
-                if global_file.exists():
-                    existing_global = pd.read_csv(global_file)
-                    if not existing_global.empty:
-                        existing_global['date'] = pd.to_datetime(existing_global['date']).dt.strftime('%Y-%m-%d')
-                        # 동일 날짜의 데이터가 있으면 제거
-                        existing_global = existing_global[existing_global['date'] != current_date]
-                        # 새 데이터를 위에 추가
-                        global_df = pd.concat([global_df, existing_global], ignore_index=True)
-            except Exception as e:
-                print(f"Error reading global_indicators.csv: {e}")
-                # 파일 읽기 실패 시 새로운 데이터만으로 저장
-                pass
-            
-            # 디렉토리가 없는 경우 생성
-            global_file.parent.mkdir(parents=True, exist_ok=True)
-            global_df.to_csv(global_file, index=False)
+            }
+            storage_service.update_csv_file(global_data, global_file)
             
             print(f"Successfully saved enhanced data for {current_date}")
             
